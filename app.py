@@ -7,6 +7,9 @@ import json
 from datetime import datetime
 from prompts import ASSESSMENT_PROMPT, SYSTEM_PROMPT, CLASS_CONTEXT
 from student_record import read_student_record, write_student_record, format_student_record, parse_student_record
+from langsmith.wrappers import wrap_openai
+from langsmith import traceable
+
 
 # Load environment variables
 load_dotenv()
@@ -38,7 +41,8 @@ config_key = "openai_gpt-4"
 config = configurations[config_key]
 
 # Initialize the OpenAI async client
-client = openai.AsyncClient(api_key=config["api_key"], base_url=config["endpoint_url"])
+# client = openai.AsyncClient(api_key=config["api_key"], base_url=config["endpoint_url"])
+client = wrap_openai(openai.AsyncClient(api_key=config["api_key"], base_url=config["endpoint_url"]))
 
 gen_kwargs = {
     "model": config["model"],
@@ -50,6 +54,7 @@ gen_kwargs = {
 ENABLE_SYSTEM_PROMPT = True
 ENABLE_CLASS_CONTEXT = True
 
+@traceable
 def get_latest_user_message(message_history):
     # Iterate through the message history in reverse to find the last user message
     for message in reversed(message_history):
@@ -57,6 +62,7 @@ def get_latest_user_message(message_history):
             return message['content']
     return None
 
+@traceable
 async def assess_message(message_history):
     file_path = "student_record.md"
     markdown_content = read_student_record(file_path)
@@ -109,6 +115,7 @@ async def assess_message(message_history):
     )
     write_student_record(file_path, updated_content)
 
+@traceable
 def parse_assessment_output(output):
     try:
         parsed_output = json.loads(output)
@@ -119,6 +126,7 @@ def parse_assessment_output(output):
         print("Failed to parse assessment output:", e)
         return [], []
 
+@traceable
 @cl.on_message
 async def on_message(message: cl.Message):
     message_history = cl.user_session.get("message_history", [])
